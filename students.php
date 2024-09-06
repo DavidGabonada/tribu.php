@@ -69,7 +69,7 @@ class Student {
         // {tribuId : 1}
         include 'connection.php';
         $data = json_decode($json, true);
-        $sql = " SELECT a.attendance_timein, a.attendance_timeout, b.student_Name, c.year_type FROM tblattedance a
+        $sql = "SELECT a.attendance_timein, a.attendance_timeout, b.student_Name, b.student_yrId, c.year_type FROM tblattedance a
                 INNER JOIN tblstudent b ON b.student_Id = a.attendance_studentId
                 INNER JOIN tblyear c ON c.year_id = b.student_yrId
                 WHERE b.student_tribuId = :tribuId";
@@ -80,6 +80,47 @@ class Student {
         unset($conn); unset($stmt);
         return json_encode($returnValue);
     }
+
+    // Save a student with yearlevel_id and tribe_id
+  function saveStudent($json){
+    // {"fullname": "Joe Doe", "username": "jdoe", "tribe_id": 1, "password": "password123", "yearlevel_id": 1, "school_id": "02-2021-03668"}
+    include 'connection.php';
+    $json = json_decode($json, true);
+    $conn->beginTransaction();
+    try {
+    $sql = "INSERT INTO tblusers (usr_name, usr_password, usr_fullname)
+    VALUES (:username, :password, :fullname)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':username', $json['username']);
+    $stmt->bindParam(':password', $json['password']);
+    $stmt->bindParam(':fullname', $json['fullname']);
+    $stmt->execute();
+
+    $newId = $conn->lastInsertId();
+        $sql = "INSERT INTO tblstudent (student_Name, student_tribuId, student_yrId, student_schoolId, student_userId) 
+            VALUES (:fullname, :tribe_id, :yearlevel_id, :school_id, :newId)";
+
+            
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':fullname', $json['fullname']);
+    $stmt->bindParam(':tribe_id', $json['tribe_id']);  // Referencing tribe ID
+    $stmt->bindParam(':yearlevel_id', $json['yearlevel_id']);  // Referencing year level ID
+    $stmt->bindParam(':school_id', $json['school_id']);
+    $stmt->bindParam(':newId', $newId);
+    $stmt->execute();
+    $conn->commit();
+    $returnValue = $stmt->rowCount() > 0 ? 1 : 0;
+    unset($conn); unset($stmt);
+    return json_encode($returnValue);
+    } catch (PDOException $th) {
+        $conn->rollBack();
+        return $th;
+    }
+
+    
+  }
+
+
 
     function getReport(){
         include 'connection.php';
@@ -145,6 +186,9 @@ if ($operation) {
             break;
         case "getReport":	
             echo $student->getReport();
+            break;
+        case "saveStudent":
+            echo $student->saveStudent($json);
             break;
         default:
             echo json_encode(["error" => "Invalid operation"]);
